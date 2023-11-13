@@ -33,6 +33,7 @@ AudioOutputI2S::AudioOutputI2S(int port, int output_mode, int dma_buf_count, int
 {
   this->portNo = port;
   this->i2sOn = false;
+  this->rateSet = false;
   this->dma_buf_count = dma_buf_count;
   if (output_mode != EXTERNAL_I2S && output_mode != INTERNAL_DAC && output_mode != INTERNAL_PDM) {
     output_mode = EXTERNAL_I2S;
@@ -107,6 +108,8 @@ bool AudioOutputI2S::SetPinout(int bclk, int wclk, int dout)
 bool AudioOutputI2S::SetRate(int hz)
 {
   // TODO - have a list of allowable rates from constructor, check them
+  // log_i("Setting Rate old [%d] new [%d] i2sOn [%d]", this->hertz, hz, (int)i2sOn);
+  if (this->hertz == hz && rateSet) return true;
   this->hertz = hz;
   if (i2sOn)
   {
@@ -117,6 +120,7 @@ bool AudioOutputI2S::SetRate(int hz)
   #elif defined(ARDUINO_ARCH_RP2040)
       i2s.setFrequency(hz);
   #endif
+    rateSet = true;
   }
   return true;
 }
@@ -234,7 +238,7 @@ bool AudioOutputI2S::begin(bool txDAC)
       {
 #if CONFIG_IDF_TARGET_ESP32
         i2s_set_pin((i2s_port_t)portNo, NULL);
-        i2s_set_dac_mode(I2S_DAC_CHANNEL_BOTH_EN);
+        i2s_set_dac_mode(I2S_DAC_CHANNEL_DISABLE);
 #else
         return false;
 #endif
@@ -348,13 +352,13 @@ bool AudioOutputI2S::stop()
 
   #ifdef ESP32
     i2s_zero_dma_buffer((i2s_port_t)portNo);
-    audioLogger->printf("UNINSTALL I2S\n");
+    log_i("UNINSTALL I2S\n");
     i2s_driver_uninstall((i2s_port_t)portNo); //stop & destroy i2s driver
   #elif defined(ESP8266)
     i2s_end();
   #elif defined(ARDUINO_ARCH_RP2040)
     i2s.end();
   #endif
-  i2sOn = false;
+  // i2sOn = false;
   return true;
 }

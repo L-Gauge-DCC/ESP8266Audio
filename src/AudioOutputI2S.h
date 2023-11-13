@@ -59,6 +59,7 @@ class AudioOutputI2S : public AudioOutput
     bool mono;
     int lsb_justified;
     bool i2sOn;
+    bool rateSet;
     int dma_buf_count;
     int use_apll;
     // We can restore the old values and free up these pins when in NoDAC mode

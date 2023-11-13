@@ -135,13 +135,14 @@ bool AudioGeneratorWAV::stop()
     }
     return false;
   } else {
+    output->flush();
     running = false;
     looping = false;
     nextLooping[0] = false;
     nextLooping[1] = false;
     free(buff);
     buff = NULL;
-    output->stop();
+    // output->stop();
     file->close();
     delete file;
 
