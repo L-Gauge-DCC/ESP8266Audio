@@ -34,6 +34,7 @@ class AudioGeneratorWAV : public AudioGenerator
     virtual bool isRunning() override;
     void SetBufferSize(int sz) { buffSize = sz; }
     void SetLoop(bool loopSet);
+    void SetLoop(bool loopSet, int index);
     bool isLooping();
     bool setNextFile(AudioFileSource *source, bool looping);
     bool setNextFile(AudioFileSource *source, int index, bool looping);

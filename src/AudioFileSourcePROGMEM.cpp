@@ -91,9 +91,12 @@ uint32_t AudioFileSourcePROGMEM::read(void *data, uint32_t len)
   uint32_t toRead = progmemLen - filePointer;
   if (toRead > len) toRead = len;
 
-  memcpy_P(data, reinterpret_cast<const uint8_t*>(progmemData)+filePointer, toRead);
-  filePointer += toRead;
-  return toRead;
+  if (progmemData != NULL && data != NULL){
+    memcpy_P(data, reinterpret_cast<const uint8_t*>(progmemData)+filePointer, toRead);
+    filePointer += toRead;
+    return toRead;
+  }
+  return 0;
 }
 
 
