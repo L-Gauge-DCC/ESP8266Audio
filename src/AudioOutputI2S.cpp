@@ -347,6 +347,7 @@ void AudioOutputI2S::flush()
 
 bool AudioOutputI2S::stop()
 {
+  log_i("Output Stop");
   if (!i2sOn)
     return false;
 

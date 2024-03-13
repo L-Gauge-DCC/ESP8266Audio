@@ -34,17 +34,17 @@ class AudioGeneratorWAV : public AudioGenerator
     virtual bool isRunning() override;
     void SetBufferSize(int sz) { buffSize = sz; }
     void SetLoop(bool loopSet);
-    void SetLoop(bool loopSet, int index);
+    // void SetLoop(bool loopSet, int index);
     bool isLooping();
-    bool setNextFile(AudioFileSource *source, bool looping);
-    bool setNextFile(AudioFileSource *source, int index, bool looping);
+    bool setNextFile(AudioFileSource *source, bool looping, bool overwriteLooping=true);
+    // bool setNextFile(AudioFileSource *source, int index, bool looping);
     bool NextFile();
-    bool NextFile(int index);
+    // bool NextFile(int index);
 
   private:
-    bool ReadU32(uint32_t *dest) { return file->read(reinterpret_cast<uint8_t*>(dest), 4); }
-    bool ReadU16(uint16_t *dest) { return file->read(reinterpret_cast<uint8_t*>(dest), 2); }
-    bool ReadU8(uint8_t *dest) { return file->read(reinterpret_cast<uint8_t*>(dest), 1); }
+    bool ReadU32(uint32_t *dest) { return file[fileReadPtr]->read(reinterpret_cast<uint8_t*>(dest), 4); }
+    bool ReadU16(uint16_t *dest) { return file[fileReadPtr]->read(reinterpret_cast<uint8_t*>(dest), 2); }
+    bool ReadU8(uint8_t *dest) { return file[fileReadPtr]->read(reinterpret_cast<uint8_t*>(dest), 1); }
     bool GetBufferedData(int bytes, void *dest);
     bool ReadWAVInfo();
 
@@ -54,9 +54,11 @@ class AudioGeneratorWAV : public AudioGenerator
     uint16_t channels;
     uint32_t sampleRate;
     uint16_t bitsPerSample;
-    bool looping;
-    AudioFileSource *nextFile[2];
-    bool nextLooping[2];
+    static const int fileCount = 10;
+    bool looping[fileCount];
+    AudioFileSource *file[fileCount];
+    int fileReadPtr;
+    int fileWritePtr;
     
     uint32_t availBytes;
     uint32_t fileBytes;
