@@ -54,7 +54,7 @@ class AudioGeneratorWAV : public AudioGenerator
     uint16_t channels;
     uint32_t sampleRate;
     uint16_t bitsPerSample;
-    static const int fileCount = 10;
+    static const int fileCount = 5;
     bool looping[fileCount];
     AudioFileSource *file[fileCount];
     int fileReadPtr;

@@ -69,6 +69,7 @@ void AudioGeneratorWAV::SetLoop(bool loopSet)
 
 bool AudioGeneratorWAV::isLooping()
 {
+  log_i("fileReadPtr: %d, looping: %d", fileReadPtr, looping[fileReadPtr]);
   return looping[fileReadPtr];
 }
 
@@ -88,16 +89,21 @@ bool AudioGeneratorWAV::setNextFile(AudioFileSource *source, bool looping, bool 
     audioLogger->printf_P(PSTR("AudioGeneratorWAV::setNextFile: failed: invalid source\n"));
     return false;
   }
+  if (fileWritePtr - 1 != fileReadPtr){
+    if (this->looping[fileWritePtr - 1] && overwriteLooping){
+      fileWritePtr = fileWritePtr - 1 == - 1 ? fileCount - 1 : fileWritePtr - 1;
+    }
+  }
   if (file[fileWritePtr] != NULL){
     file[fileWritePtr]->close();
     delete file[fileWritePtr];
   }
   file[fileWritePtr] = source;
   this->looping[fileWritePtr] = looping;
-  if (!looping || !overwriteLooping){
-    fileWritePtr++;
-    fileWritePtr %= fileCount;
-  }
+  // if (!looping || !overwriteLooping){
+    // fileWritePtr++;
+  fileWritePtr = fileWritePtr + 1 == fileCount ? 0 : fileWritePtr + 1;
+  // }
   // log_i("fileWritePtr: %d", fileWritePtr);
 
   return true;
@@ -120,7 +126,7 @@ bool AudioGeneratorWAV::setNextFile(AudioFileSource *source, bool looping, bool 
 
 bool AudioGeneratorWAV::NextFile()
 {
-  int nextFilePtr = (fileReadPtr + 1) % fileCount;
+  int nextFilePtr = fileReadPtr + 1 == fileCount ? 0 : fileReadPtr + 1;;
   if (file[nextFilePtr] == NULL){
     return false;
   } else {
@@ -141,7 +147,7 @@ bool AudioGeneratorWAV::stop()
 {
   if (!running) return true;
   
-  // log_i("fileReadPtr: %d", fileReadPtr);
+  log_i("fileReadPtr: %d, looping: %d", fileReadPtr, looping[fileReadPtr]);
   if (looping[fileReadPtr]){
     // Restart file 
     if (!file[fileReadPtr]->seek(file[fileReadPtr]->getSize() - fileBytes, SEEK_SET)){
@@ -157,9 +163,10 @@ bool AudioGeneratorWAV::stop()
     delete file[fileReadPtr];
     file[fileReadPtr] = NULL;
     looping[fileReadPtr] = false;
-    // log_i("fileReadPtr: %d", fileReadPtr);
-    fileReadPtr++;
-    fileReadPtr %= fileCount;
+    // fileReadPtr++;
+    fileReadPtr = fileReadPtr + 1 == fileCount ? 0 : fileReadPtr + 1;
+    log_i("fileReadPtr: %d", fileReadPtr);
+    // fileReadPtr %= fileCount;
     // file = nextFile[0];
     // looping = nextLooping[0];
     // nextFile[0] = nextFile[1];
@@ -169,7 +176,6 @@ bool AudioGeneratorWAV::stop()
 
     if (!file[fileReadPtr]->isOpen()) {
       audioLogger->printf_P(PSTR("AudioGeneratorWAV::stop: file not open\n"));
-      log_i("AudioGeneratorWAV::stop: file not open");
       return false;
     } 
 
@@ -179,13 +185,12 @@ bool AudioGeneratorWAV::stop()
     // }
     if (!ReadWAVInfo()) {
       audioLogger->printf_P(PSTR("AudioGeneratorWAV::stop: failed during ReadWAVInfo\n"));
-      log_i("AudioGeneratorWAV::stop: failed during ReadWAVInfo");
       return false;
     }
     return false;
   } else {
-    log_i("End File");
-    output->flush();
+    // log_i("End File");
+    // output->flush();
     running = false;
     looping[fileReadPtr] = false;
     // nextLooping[0] = false;
@@ -474,9 +479,8 @@ bool AudioGeneratorWAV::begin(AudioFileSource *source, AudioOutput *output)
     return false;
   }
 
-  fileWritePtr++;
-  fileWritePtr %= fileCount;
-  log_i("fileWritePtr: %d", fileWritePtr);
+  fileWritePtr = fileWritePtr + 1 == fileCount ? 0 : fileWritePtr + 1;
+  // log_i("fileWritePtr: %d", fileWritePtr);
   running = true;
 
   return true;
