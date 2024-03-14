@@ -38,6 +38,7 @@ class AudioFileSource
     virtual uint32_t getSize() { return 0; };
     virtual uint32_t getPos() { return 0; };
     virtual bool loop() { return true; };
+    virtual const void* getFilePointer() { return (const void*)0;};
 
   public:
     virtual bool RegisterMetadataCB(AudioStatus::metadataCBFn fn, void *data) { return cb.RegisterMetadataCB(fn, data); }

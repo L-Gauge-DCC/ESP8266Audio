@@ -54,6 +54,11 @@ uint32_t AudioFileSourcePROGMEM::getSize()
   return progmemLen;
 }
 
+const void* AudioFileSourcePROGMEM::getFilePointer()
+{
+  return progmemData;
+}
+
 bool AudioFileSourcePROGMEM::isOpen()
 {
   return opened;

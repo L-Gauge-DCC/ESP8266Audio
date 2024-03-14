@@ -35,6 +35,7 @@ class AudioFileSourcePROGMEM : public AudioFileSource
     virtual bool isOpen() override;
     virtual uint32_t getSize() override;
     virtual uint32_t getPos() override { if (!opened) return 0; else return filePointer; };
+    virtual const void* getFilePointer() override;
 
     bool open(const void *data, uint32_t len);
 
