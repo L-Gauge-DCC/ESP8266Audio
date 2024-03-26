@@ -58,7 +58,7 @@ void AudioGeneratorWAV::SetLoop(bool loopSet)
   looping[fileReadPtr] = loopSet;
 }
 
-bool AudioGeneratorWAV::SetNextFileLoop(bool loopSet)
+void AudioGeneratorWAV::SetNextFileLoop(bool loopSet)
 {
   looping[fileReadPtr + 1] = loopSet;
 }
