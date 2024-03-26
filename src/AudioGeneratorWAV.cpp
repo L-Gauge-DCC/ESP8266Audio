@@ -152,14 +152,6 @@ bool AudioGeneratorWAV::stop()
 
     fileReadPtr = fileReadPtr + 1 == fileCount ? 0 : fileReadPtr + 1;
     int nextFilePointer = fileReadPtr + 1 == fileCount ? 0 : fileReadPtr + 1;
-    
-    if (looping[fileReadPtr] && file[nextFilePointer] != NULL){
-      file[fileReadPtr]->close();
-      delete file[fileReadPtr];
-      file[fileReadPtr] = NULL;
-      looping[fileReadPtr] = false;
-      fileReadPtr = nextFilePointer;
-    }
 
     // log_i("fileReadPtr: %d", fileReadPtr);
 
