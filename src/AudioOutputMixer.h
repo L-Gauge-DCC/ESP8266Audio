@@ -74,7 +74,7 @@ class AudioOutputMixer : public AudioOutput
     bool stop(int id);
 
   protected:
-    enum { maxStubs = 10 };
+    enum { maxStubs = 12 };
     AudioOutput *sink;
     bool sinkStarted;
     int16_t buffSize;
