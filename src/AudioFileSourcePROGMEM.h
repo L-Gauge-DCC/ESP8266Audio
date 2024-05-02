@@ -30,6 +30,7 @@ class AudioFileSourcePROGMEM : public AudioFileSource
     AudioFileSourcePROGMEM(const void *data, uint32_t len);
     virtual ~AudioFileSourcePROGMEM() override;
     virtual uint32_t read(void *data, uint32_t len) override;
+    virtual uint32_t peek(void *data, uint32_t len) override;
     virtual bool seek(int32_t pos, int dir) override;
     virtual bool close() override;
     virtual bool isOpen() override;

@@ -33,10 +33,13 @@ AudioGeneratorWAV::AudioGeneratorWAV()
   fileReadPtr = 0;
   fileWritePtr = 0;
   output = NULL;
-  buffSize = 256; // Needs to be able to store the whole sound file??
+  buffSize = 128; // Needs to be able to store the whole sound file??
   buff = NULL;
   buffPtr = 0;
   buffLen = 0;
+  pitch = 1.0;
+  buffPtrDecimal = 0.0;
+  pitchTaskHandle = NULL;
 }
 
 AudioGeneratorWAV::~AudioGeneratorWAV()
@@ -187,6 +190,93 @@ bool AudioGeneratorWAV::isRunning()
   return running;
 }
 
+void AudioGeneratorWAV::changePitch(double pitch, int pitchChangeDuration){
+  newPitch = pitch;
+  this->pitchChangeDuration = pitchChangeDuration;
+  if (pitchTaskHandle != NULL){
+    vTaskDelete(pitchTaskHandle);
+    pitchTaskHandle = NULL;
+  }
+  xTaskCreate(this->startPitchChangeTask, "Pitch Change Task", 4096, this, 4, &pitchTaskHandle);
+}
+
+void AudioGeneratorWAV::setPitch(double newPitch){
+  pitch = newPitch;
+}
+
+void AudioGeneratorWAV::startPitchChangeTask(void* _this){
+    static_cast<AudioGeneratorWAV*>(_this)->pitchChangeTask();
+}
+
+static double mapDouble(double x, double in_min, double in_max, double out_min, double out_max) {
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+void AudioGeneratorWAV::pitchChangeTask(){
+  int steps = (double)pitchChangeDuration/10.0;
+  double pitch = this->pitch;
+  for (int i = 0; i < steps; i++){
+      this->pitch = mapDouble(i, 0, steps, pitch, newPitch);
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+  }
+  for(;;){
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
+  }
+}
+
+static float InterpolateHermite4pt3oX(float x0, float x1, float x2, float x3, float t)
+{
+  float c0 = x1;
+  float c1 = .5F * (x2 - x0);
+  float c2 = x0 - (2.5F * x1) + (2 * x2) - (.5F * x3);
+  float c3 = (.5F * (x3 - x0)) + (1.5F * (x1 - x2));
+  return (((((c3 * t) + c2) * t) + c1) * t) + c0;
+}
+
+static float InterpolateBSpline4pt3oX(float x0, float x1, float x2, float x3, float t)
+{
+  float ym1py1 = x0+x2;
+  float c0 = 1/6.0*ym1py1 + 2/3.0*x1;
+  float c1 = 1/2.0*(x2-x0);
+  float c2 = 1/2.0*ym1py1 - x1;
+  float c3 = 1/2.0*(x1-x2) + 1/6.0*(x3-x0);
+  return ((c3*t+c2)*t+c1)*t+c0;
+}
+
+static float InterpolateOptimal4pt3oZ(float x0, float x1, float x2, float x3, float t)
+{
+  // Optimal 2x (4-point, 3rd-order) (z-form)
+  float z = t - 1/2.0;
+  float even1 = x2+x1, odd1 = x2-x1;
+  float even2 = x3+x0, odd2 = x3-x0;
+  float c0 = even1*0.45868970870461956 + even2*0.04131401926395584;
+  float c1 = odd1*0.48068024766578432 + odd2*0.17577925564495955;
+  float c2 = even1*-0.246185007019907091 + even2*0.24614027139700284;
+  float c3 = odd1*-0.36030925263849456 + odd2*0.10174985775982505;
+  return ((c3*z+c2)*z+c1)*z+c0;
+}
+
+static float InterpolateOptimal6pt5oZ(float x0, float x1, float x2, float x3, float x4, float x5, float t)
+{
+  // Optimal 2x (6-point, 5th-order) (z-form)
+  float z = t - 1/2.0;
+  float even1 = x3+x2, odd1 = x3-x2;
+  float even2 = x4+x1, odd2 = x4-x1;
+  float even3 = x5+x0, odd3 = x5-x0;
+  float c0 = even1*0.40513396007145713 + even2*0.09251794438424393
+  + even3*0.00234806603570670;
+  float c1 = odd1*0.28342806338906690 + odd2*0.21703277024054901
+  + odd3*0.01309294748731515;
+  float c2 = even1*-0.191337682540351941 + even2*0.16187844487943592
+  + even3*0.02946017143111912;
+  float c3 = odd1*-0.16471626190554542 + odd2*-0.00154547203542499
+  + odd3*0.03399271444851909;
+  float c4 = even1*0.03845798729588149 + even2*-0.05712936104242644
+  + even3*0.01866750929921070;
+  float c5 = odd1*0.04317950185225609 + odd2*-0.01802814255926417
+  + odd3*0.00152170021558204;
+  return ((((c5*z+c4)*z+c3)*z+c2)*z+c1)*z+c0;
+}
 
 // Handle buffered reading, reload each time we run out of data
 bool AudioGeneratorWAV::GetBufferedData(int bytes, void *dest)
@@ -196,7 +286,8 @@ bool AudioGeneratorWAV::GetBufferedData(int bytes, void *dest)
   while (bytes--) {
     // Potentially load next batch of data...
     if (buffPtr >= buffLen) {
-      buffPtr = 0;
+      buffPtr = buffPtr - buffLen;
+      // log_i("buffPtr: %f", buffPtr);
       uint32_t toRead = availBytes > buffSize ? buffSize : availBytes;
       buffLen = file[fileReadPtr]->read( buff, toRead );
       availBytes -= buffLen;
@@ -205,7 +296,52 @@ bool AudioGeneratorWAV::GetBufferedData(int bytes, void *dest)
       return false; // No data left!
     }
     if (buff){
-      *(p++) = buff[buffPtr++];
+      if (pitch == 1.0 && oversample == 1){
+        *(p++) = buff[buffPtr];
+        previousPreviousValue = previousValue;
+        previousValue = buff[buffPtr];
+        buffPtr += oversample;
+      } else {
+        if (buffPtr >= buffLen - 1){
+          // log_i("buffPtr: %d, buffLen: %d", buffPtr, buffLen);
+          uint8_t* overflowBuff = reinterpret_cast<uint8_t *>(malloc(3));
+          uint32_t toRead = file[fileReadPtr]->peek( overflowBuff, 3 );
+          // log_i("bytes to Read: %d", toRead);
+          // log_i("values: %d, %d, %d, %d, %f", previousValue, buff[buffPtr], overflowBuff[0], overflowBuff[1], buffPtrDecimal);
+          *(p++) = InterpolateOptimal4pt3oZ(previousValue, buff[buffPtr], overflowBuff[0], overflowBuff[1], buffPtrDecimal);
+          // *(p++) = InterpolateOptimal6pt5oZ(previousPreviousValue, previousValue, buff[buffPtr], overflowBuff[0], overflowBuff[1], overflowBuff[2], buffPtrDecimal);
+          free(overflowBuff);
+        } else if (buffPtr >= buffLen - 2){
+          // log_i("buffPtr: %d, buffLen: %d", buffPtr, buffLen);
+          uint8_t* overflowBuff = reinterpret_cast<uint8_t *>(malloc(2));
+          uint32_t toRead = file[fileReadPtr]->peek( overflowBuff, 2 );
+          // log_i("bytes to Read: %d", toRead);
+          // log_i("values: %d, %d, %d, %d, %f", previousValue, buff[buffPtr], buff[buffPtr + 1], overflowBuff[0], buffPtrDecimal);
+          *(p++) = InterpolateOptimal4pt3oZ(previousValue, buff[buffPtr], buff[buffPtr + 1], overflowBuff[0], buffPtrDecimal);
+          // *(p++) = InterpolateOptimal6pt5oZ(previousPreviousValue, previousValue, buff[buffPtr], buff[buffPtr + 1], overflowBuff[0], overflowBuff[1], buffPtrDecimal);
+          free(overflowBuff);
+        // } else if (buffPtr >= buffLen - 3){
+        //   // log_i("buffPtr: %d, buffLen: %d", buffPtr, buffLen);
+        //   uint8_t* overflowBuff = reinterpret_cast<uint8_t *>(malloc(1));
+        //   uint32_t toRead = file[fileReadPtr]->peek( overflowBuff, 1 );
+        //   // log_i("bytes to Read: %d", toRead);
+        //   // log_i("values: %d, %d, %d, %d, %f", previousValue, buff[buffPtr], buff[buffPtr + 1], overflowBuff[0], buffPtrDecimal);
+        //   // *(p++) = InterpolateOptimal4pt3oZ(previousValue, buff[buffPtr], buff[buffPtr + 1], overflowBuff[0], buffPtrDecimal);
+        //   // *(p++) = InterpolateOptimal6pt5oZ(previousPreviousValue, previousValue, buff[buffPtr], buff[buffPtr + 1], buff[buffPtr + 1], overflowBuff[0], buffPtrDecimal);
+        //   free(overflowBuff);
+        } else {
+          // log_i("values: %d, %d, %d, %d, %f", previousValue, buff[buffPtr], buff[buffPtr + 1], buff[buffPtr + 2], buffPtrDecimal);
+          // *(p++) = InterpolateOptimal6pt5oZ(previousPreviousValue, previousValue, buff[buffPtr], buff[buffPtr + 1], buff[buffPtr + 1], buff[buffPtr + 2], buffPtrDecimal);
+          *(p++) = InterpolateOptimal4pt3oZ(previousValue, buff[buffPtr], buff[buffPtr + 1], buff[buffPtr + 2], buffPtrDecimal);
+        }
+        buffPtrDecimal += pitch;
+        if (buffPtrDecimal >= (double)oversample){
+          buffPtrDecimal-= oversample;
+          previousPreviousValue = previousValue;
+          previousValue = buff[buffPtr];
+          buffPtr += oversample;
+        }
+      }
     }
   }
   return true;
@@ -334,7 +470,9 @@ bool AudioGeneratorWAV::ReadWAVInfo()
     audioLogger->printf_P(PSTR("AudioGeneratorWAV::ReadWAVInfo: cannot read WAV, unknown sample rate \n"));
     return false;
   }  // Weird rate, punt.  Will need to check w/DAC to see if supported
-
+  
+  sampleRate /= oversample;
+  
   // Ignore byterate and blockalign
   if (!ReadU32(&u32)) {
     audioLogger->printf_P(PSTR("AudioGeneratorWAV::ReadWAVInfo: failed to read WAV data\n"));
@@ -410,6 +548,11 @@ bool AudioGeneratorWAV::ReadWAVInfo()
   buffLen = 0;
 
   return true;
+}
+
+bool AudioGeneratorWAV::begin(AudioFileSource *source, AudioOutput *output, int oversample){
+  this->oversample = oversample;
+  return begin(source, output);
 }
 
 bool AudioGeneratorWAV::begin(AudioFileSource *source, AudioOutput *output)

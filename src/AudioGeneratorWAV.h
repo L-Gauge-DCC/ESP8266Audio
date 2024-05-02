@@ -29,6 +29,7 @@ class AudioGeneratorWAV : public AudioGenerator
     AudioGeneratorWAV();
     virtual ~AudioGeneratorWAV() override;
     virtual bool begin(AudioFileSource *source, AudioOutput *output) override;
+    bool begin(AudioFileSource *source, AudioOutput *output, int oversample);
     virtual bool loop() override;
     virtual bool stop() override;
     virtual bool isRunning() override;
@@ -38,6 +39,8 @@ class AudioGeneratorWAV : public AudioGenerator
     bool isLooping();
     bool setNextFile(AudioFileSource *source, bool looping, bool overwriteLooping=true);
     bool NextFile();
+    void changePitch(double newPitch, int pitchChangeDuration=10);
+    void setPitch(double newPitch);
 
   private:
     bool ReadU32(uint32_t *dest) { return file[fileReadPtr]->read(reinterpret_cast<uint8_t*>(dest), 4); }
@@ -57,6 +60,10 @@ class AudioGeneratorWAV : public AudioGenerator
     AudioFileSource *file[fileCount];
     int fileReadPtr;
     int fileWritePtr;
+    double pitch;
+    double newPitch;
+    int pitchChangeDuration;
+    int oversample = 1;
     
     uint32_t availBytes;
     uint32_t fileBytes;
@@ -64,8 +71,14 @@ class AudioGeneratorWAV : public AudioGenerator
     // We need to buffer some data in-RAM to avoid doing 1000s of small reads
     uint32_t buffSize;
     uint8_t *buff;
-    uint16_t buffPtr;
+    int buffPtr;
+    double buffPtrDecimal;
     uint16_t buffLen;
+    TaskHandle_t pitchTaskHandle;
+    uint8_t previousValue;
+    uint8_t previousPreviousValue;
+    static void startPitchChangeTask(void* _this);
+    void pitchChangeTask();
 };
 
 #endif
